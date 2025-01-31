@@ -8,8 +8,8 @@ import './App.css'
 //   browser and connecting to MotherDuck:
 const CONNECT_TO_MOTHERDUCK = true
 
-// A Read-Scaling (e.g. read only) MotherDuck token. Create an .env.local file and add VITE_MD_TOKEN='abc123'
-const TOKEN = import.meta.env.VITE_MD_TOKEN
+// A Read-Scaling (e.g. read only) MotherDuck token:
+const TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6Im4uZS5sb3JlbnNvbkBnbWFpbC5jb20iLCJzZXNzaW9uIjoibi5lLmxvcmVuc29uLmdtYWlsLmNvbSIsInBhdCI6Ink3M2hRS2ZsSWhscDE2aEVhV2EzaGo0aGgxeGZ4cTd1aVBwVVNFS0xmZXMiLCJ1c2VySWQiOiIzN2I1MTlmZC00OTA1LTRlMmMtODU2Yy1lMDgxZjZiNTJjNjciLCJpc3MiOiJtZF9wYXQiLCJyZWFkT25seSI6dHJ1ZSwidG9rZW5UeXBlIjoicmVhZF9zY2FsaW5nIiwiaWF0IjoxNzM4MzUwNDcxfQ.pgbFhh4oYx-hKPlzykVS0v_WGETdetGEOlvYsZToxLE'
 
 function LinePlot({ connectToMotherDuck }: { connectToMotherDuck: boolean }) {
     const [plot, setPlot] = useState<unknown | null>(null)
