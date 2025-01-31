@@ -6,7 +6,7 @@ import './App.css'
 
 // Flip this flag to switch between using a local DuckDB Wasm instance in the 
 //   browser and connecting to MotherDuck:
-const CONNECT_TO_MOTHERDUCK = false
+const CONNECT_TO_MOTHERDUCK = true
 
 // A Read-Scaling (e.g. read only) MotherDuck token. Create an .env.local file and add VITE_MD_TOKEN='abc123'
 const TOKEN = import.meta.env.VITE_MD_TOKEN
@@ -18,14 +18,14 @@ function LinePlot({ connectToMotherDuck }: { connectToMotherDuck: boolean }) {
         async function buildPlot() {
             if (connectToMotherDuck) {
                 // Confirming that we can SELECT successfully
-                const results = await vg.coordinator().query('SELECT Complaints, Year FROM mosaic_examples.main.complaints LIMIT 10')
+                const results = await vg.coordinator().query('SELECT tip_amount, tpep_pickup_datetime FROM sample_data.nyc.taxi LIMIT 10')
                 console.info(String(results))
                 
                 // Confirming that we can DESCRIBE successfully
-                const d1 = await vg.coordinator().query('DESCRIBE SELECT Complaints as column FROM mosaic_examples.main.complaints as source')
+                const d1 = await vg.coordinator().query('DESCRIBE SELECT tpep_pickup_datetime AS column FROM sample_data.nyc.taxi AS source')
                 console.info('d1', String(d1))
                 
-                // Uncomment line 41 and the error thrown by the plot changes to:
+                // ERROR 2: Uncomment line 45 and the error thrown by the plot changes to:
                 //
                 // hook.js:608 TypeError: data.toColumns is not a function
                 //   at arrowToColumns (to-data-columns.js:35:35)
@@ -35,17 +35,17 @@ function LinePlot({ connectToMotherDuck }: { connectToMotherDuck: boolean }) {
                 //
                 // This seems correlated with the use of quotes in the DESCRIBE query.
                 //
-                // The query string used on line 41 was derived from field-info.js:71 by 
+                // The query string used on line 45 was derived from field-info.js:71 by 
                 //   stringifying the return value of `Query.describe` in the console
                 //   while paused on a breakpoint:
                 //
                 // String(Query.describe(q))
-                // > 'DESCRIBE SELECT "Complaints" AS "column" FROM "mosaic_examples"."main"."complaints" AS "source"'
+                // > 'DESCRIBE SELECT "tpep_pickup_datetime" AS "column" FROM "sample_data"."nyc"."taxi" AS "source"'
                 
-                // const d2 = await vg.coordinator().query('DESCRIBE SELECT "Complaints" AS "column" FROM "mosaic_examples"."main"."complaints" AS "source"')
+                // const d2 = await vg.coordinator().query('DESCRIBE SELECT "tpep_pickup_datetime" AS "column" FROM "sample_data"."nyc"."taxi" AS "source"')
                 // console.info('d2', String(d2))
 
-                // The plot attempts to run DESCRIBE queries against the source columns but throws the following:
+                // ERROR 1: The plot attempts to run DESCRIBE queries against the source columns but throws the following:
                 //
                 // field-info.js:75 Uncaught (in promise) TypeError: Cannot read properties of undefined (reading 'column_type')
                 //   at getFieldInfo (field-info.js:75:19)
@@ -54,10 +54,10 @@ function LinePlot({ connectToMotherDuck }: { connectToMotherDuck: boolean }) {
                 //   at async Coordinator.initializeClient (Coordinator.js:251:24)
                 const plot = vg.plot(
                     vg.line(
-                        vg.from('mosaic_examples.main.complaints'),
+                        vg.from('sample_data.nyc.taxi'),
                         {
-                            x: 'Year',
-                            y: 'Complaints'
+                            x: 'tpep_pickup_datetime',
+                            y: 'tip_amount'
                         }
                     )
                 )
@@ -85,7 +85,6 @@ function LinePlot({ connectToMotherDuck }: { connectToMotherDuck: boolean }) {
 
                 setPlot(plot)
             }
-                
         }
 
         buildPlot()
