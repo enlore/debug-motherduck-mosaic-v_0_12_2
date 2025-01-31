@@ -1,7 +1,7 @@
 # Debugging Mosaic v0.12.2
 
-1. npm i
-1. npm run dev
+1. `npm i`
+1. `npm run dev`
 
 # React + TypeScript + Vite
 
