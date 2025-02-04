@@ -1,6 +1,9 @@
 import * as vg from "@uwdata/vgplot"
-import * as arrow from 'apache-arrow';
-import { MDConnection, QueryResult } from '@motherduck/wasm-client';
+import { decodeIPC } from "@uwdata/mosaic-core"
+import { Table } from "@uwdata/flechette"
+// import * as arrow from 'apache-arrow';
+import { getAsyncDuckDb, QueryResult } from '@motherduck/wasm-client';
+import { AsyncDuckDBConnection, AsyncResultStreamIterator, AsyncDuckDB } from '@duckdb/duckdb-wasm'
 import { useCallback, useEffect, useState } from 'react';
 import './App.css'
 
@@ -18,12 +21,12 @@ function LinePlot({ connectToMotherDuck }: { connectToMotherDuck: boolean }) {
         async function buildPlot() {
             if (connectToMotherDuck) {
                 // Confirming that we can SELECT successfully
-                const results = await vg.coordinator().query('SELECT tip_amount, tpep_pickup_datetime FROM sample_data.nyc.taxi LIMIT 10')
-                console.info(String(results))
+                const results = await vg.coordinator().query('SELECT tip_amount, tpep_pickup_datetime FROM sample_data.nyc.taxi LIMIT 10') as Table
+                console.info(results.toArray())
                 
                 // Confirming that we can DESCRIBE successfully
-                const d1 = await vg.coordinator().query('DESCRIBE SELECT tpep_pickup_datetime AS column FROM sample_data.nyc.taxi AS source')
-                console.info('d1', String(d1))
+                const d1 = await vg.coordinator().query('DESCRIBE SELECT tpep_pickup_datetime AS column FROM sample_data.nyc.taxi AS source') as Table
+                console.info('d1', d1.toArray())
                 
                 // ERROR 2: Uncomment line 45 and the error thrown by the plot changes to:
                 //
@@ -104,6 +107,12 @@ function LinePlot({ connectToMotherDuck }: { connectToMotherDuck: boolean }) {
     )
 }
 
+function decodeIPCToFlechette(result: Uint8Array): Table {
+  const table = decodeIPC(result)
+  return table
+}
+
+//@ts-expect-error unused
 async function arrowTableFromResult(result: QueryResult) {
   if (result.type === 'streaming') {
     const batches = await result.arrowStream.readAll();
@@ -114,28 +123,99 @@ async function arrowTableFromResult(result: QueryResult) {
   }
 }
 
-async function mdConnector(token: string): Promise<vg.Connector> {
-  const connection = MDConnection.create({
-    mdToken: token,
+/**
+ * Iterates asyncronously over batches of binary data sent by upstream and collects them in an Uint8Array
+ * @param iter AsyncResultStreamIterator
+ * @returns Promise<Uint8Array>
+ */
+async function accumulateIPCBuffer(iter: AsyncResultStreamIterator): Promise<Uint8Array> {
+  const batches = []
+
+  for await (const batch of iter) {
+    batches.push(batch)
+  }
+
+  const len = batches.reduce((acc, batch) => acc += batch.length, 0)
+
+  const outputBuffer = new Uint8Array(len)
+
+  let offset = 0
+
+  for (const batch of batches) {
+    outputBuffer.set(batch, offset)
+    offset += batch.length
+  }
+
+  return outputBuffer
+}
+
+/**
+ * Start a query and poll it to see when it finishes. Get the IPC data and build a Uint8Array from it.
+ * @param conn AsyncDuckDBConnection
+ * @param sql string A DuckDB SQL query string
+ * @returns Promise<Uint8Array | undefined> The query results IPC data stream all buffered into one place
+ */
+async function getMDArrowIPC(conn: AsyncDuckDBConnection, sql: string): Promise<Uint8Array | undefined> {
+  return await conn.useUnsafe(async (bindings: AsyncDuckDB, connId: number) => {
+    try {
+      let header = await bindings.startPendingQuery(connId, sql);
+      
+      while (header == null) {
+          header = await bindings.pollPendingQuery(connId);
+      }
+
+      // see the duckdb-wasm AsyncResultStreamIterator: https://github.com/duckdb/duckdb-wasm/blob/41c03bef54cbc310ba2afa2e5f71f7a22b38364f/packages/duckdb-wasm/src/parallel/async_connection.ts#L111-L158 
+      const iter = new AsyncResultStreamIterator(bindings, connId, header);
+      
+      const buffer = await accumulateIPCBuffer(iter);
+     
+      return buffer;
+
+    } catch (error) {
+        // TODO blearg
+        console.error(error)
+    }
   });
+}
+
+async function mdConnector(token: string): Promise<vg.Connector> {
+  // We need connection ID to poll against later and the MDConnection does not provide a useUnsafe method
+  // const connection = MDConnection.create({
+  //   mdToken: token,
+  // });
+
+  // So we drop down a level to the DuckDB instance and get a connection from it
+  const duckDb = await getAsyncDuckDb({
+    mdToken: token,
+  })
+
+  const duckDbConn = await duckDb.connect() as unknown as AsyncDuckDBConnection
 
   return {
-    query: async (query: vg.Query) => {
+    query: async (query: vg.Query): Promise<Table | undefined>  => {
       const { sql, type } = query;
-      const result = await connection.evaluateStreamingQuery(sql);
-      switch (type) {
-        case 'arrow':
-          return arrowTableFromResult(result);
-        case 'json':
-          return Array.from(await arrowTableFromResult(result));
-        default:
-        case 'exec':
-          return undefined;
+      // const result = await connection.evaluateStreamingQuery(sql);
+      const bytes = await getMDArrowIPC(duckDbConn, sql)
+
+      if (bytes) {
+        switch (type) {
+          case 'arrow':
+            return decodeIPCToFlechette(bytes);
+          case 'json':
+            // return Array.from(await decodeIPCToFlechette(bytes));
+            throw new Error('No JSON queries today, arrow only')
+          default:
+          case 'exec':
+            return undefined;
+        }
+      } else {
+        return undefined
       }
     },
   };
 }
 
+//@ts-expect-error unused
 async function logDBMeta(connectToMotherDuck: boolean) {
   const versionResult = await vg.coordinator().query(`PRAGMA version`);
   const platformResult = await vg.coordinator().query(`PRAGMA platform`);
@@ -173,7 +253,7 @@ function App() {
       vg.coordinator().databaseConnector(wasmDuckDbConnector);
     }
 
-    await logDBMeta(CONNECT_TO_MOTHERDUCK)
+    // await logDBMeta(CONNECT_TO_MOTHERDUCK)
     setConnected(true)
   }, [])
 
