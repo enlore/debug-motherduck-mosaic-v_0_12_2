@@ -187,7 +187,7 @@ async function mdConnector(token: string): Promise<vg.Connector> {
   // });
 
   // So we drop down a level to the DuckDB instance provided by MotherDuck's 
-  //   getAsyncDb and get a connection from it
+  //   getAsyncDuckDb and get a connection from it
   const duckDb = await getAsyncDuckDb({
     mdToken: token,
   })
