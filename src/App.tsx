@@ -179,21 +179,27 @@ async function getMDArrowIPC(conn: AsyncDuckDBConnection, sql: string): Promise<
 }
 
 async function mdConnector(token: string): Promise<vg.Connector> {
-  // We need connection ID to poll against later and the MDConnection does not provide a useUnsafe method
+  // We need connection ID to poll against later and the MDConnection does not 
+  //   provide a useUnsafe method
+  //
   // const connection = MDConnection.create({
   //   mdToken: token,
   // });
 
-  // So we drop down a level to the DuckDB instance and get a connection from it
+  // So we drop down a level to the DuckDB instance provided by MotherDuck's 
+  //   getAsyncDb and get a connection from it
   const duckDb = await getAsyncDuckDb({
     mdToken: token,
   })
 
+  // Cast to the DuckDB Wasm version of the AsyncDuckDBConnection type
   const duckDbConn = await duckDb.connect() as unknown as AsyncDuckDBConnection
 
   return {
     query: async (query: vg.Query): Promise<Table | undefined>  => {
       const { sql, type } = query;
+      // Here we were using a convenience method to query the db, but now again
+      //   we are going to drop down a level
       // const result = await connection.evaluateStreamingQuery(sql);
       const bytes = await getMDArrowIPC(duckDbConn, sql)
 
