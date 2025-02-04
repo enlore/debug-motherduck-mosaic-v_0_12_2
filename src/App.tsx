@@ -28,7 +28,7 @@ function LinePlot({ connectToMotherDuck }: { connectToMotherDuck: boolean }) {
                 const d1 = await vg.coordinator().query('DESCRIBE SELECT tpep_pickup_datetime AS column FROM sample_data.nyc.taxi AS source') as Table
                 console.info('d1', d1.toArray())
                 
-                // ERROR 2: Uncomment line 45 and the error thrown by the plot changes to:
+                // ERROR 2: Uncomment line 48 and the error thrown by the plot changes to:
                 //
                 // hook.js:608 TypeError: data.toColumns is not a function
                 //   at arrowToColumns (to-data-columns.js:35:35)
@@ -38,15 +38,15 @@ function LinePlot({ connectToMotherDuck }: { connectToMotherDuck: boolean }) {
                 //
                 // This seems correlated with the use of quotes in the DESCRIBE query.
                 //
-                // The query string used on line 45 was derived from field-info.js:71 by 
+                // The query string used on the below was derived from field-info.js:71 by 
                 //   stringifying the return value of `Query.describe` in the console
                 //   while paused on a breakpoint:
                 //
                 // String(Query.describe(q))
                 // > 'DESCRIBE SELECT "tpep_pickup_datetime" AS "column" FROM "sample_data"."nyc"."taxi" AS "source"'
                 
-                // const d2 = await vg.coordinator().query('DESCRIBE SELECT "tpep_pickup_datetime" AS "column" FROM "sample_data"."nyc"."taxi" AS "source"')
-                // console.info('d2', String(d2))
+                  // const d2 = await vg.coordinator().query('DESCRIBE SELECT "tpep_pickup_datetime" AS "column" FROM "sample_data"."nyc"."taxi" AS "source"') as Table
+                  // console.info('d2', d2.toArray())
 
                 // ERROR 1: The plot attempts to run DESCRIBE queries against the source columns but throws the following:
                 //
